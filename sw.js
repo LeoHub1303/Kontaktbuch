@@ -1,6 +1,6 @@
 const CACHE_NAME = 'kontaktbuch-shell-v1';
 const SHELL_FILES = [
-  './kontaktbuch-app.html',
+  './index.html',
   './manifest.json',
   './icon.svg',
   './supabase.min.js'

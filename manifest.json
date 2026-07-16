@@ -1,7 +1,7 @@
 {
   "name": "Kontaktbuch — Netzwerk-Hub",
   "short_name": "Kontaktbuch",
-  "start_url": "./kontaktbuch-app.html",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#2b1c12",
   "theme_color": "#2b1c12",
