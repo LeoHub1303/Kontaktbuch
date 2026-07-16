@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kontaktbuch — Netzwerk-Hub</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2b1c12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Kontaktbuch">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+<script src="./supabase.min.js"></script>
+<style>
+  :root {
+    --cover: #2b1c12;
+    --cover-emboss: #4d3320;
+    --cover-emboss-light: #6b4a2c;
+    --paper: #f6f1e4;
+    --paper-shadow: #e8dfc7;
+    --paper-line: #d3c6a4;
+    --ink: #3a2a1a;
+    --ink-light: #8a7757;
+    --accent: #c1652f;
+    --accent-dark: #93481e;
+    --amber: #d99a4e;
+    --seal: #b04a1f;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: transparent;
+    font-family: 'Courier Prime', monospace;
+    color: var(--ink);
+    display: flex;
+    justify-content: center;
+    padding: 20px 8px;
+  }
+
+  .book {
+    width: 100%;
+    max-width: 940px;
+    background: var(--cover);
+    background-image:
+      radial-gradient(circle at 12% 18%, rgba(255,255,255,0.03), transparent 40%),
+      radial-gradient(circle at 88% 82%, rgba(255,255,255,0.03), transparent 40%);
+    border-radius: 6px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.4), inset 0 0 0 2px var(--cover-emboss);
+    padding: 18px;
+    position: relative;
+  }
+
+  .cover-title {
+    font-family: 'Special Elite', monospace;
+    color: var(--amber);
+    text-align: center;
+    font-size: 1.5rem;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    padding: 14px 0 6px;
+    border-bottom: 2px solid var(--cover-emboss-light);
+    margin-bottom: 14px;
+    text-shadow: 0 1px 0 rgba(0,0,0,0.4);
+  }
+
+  .cover-title .subtitle {
+    display: block;
+    font-family: 'Courier Prime', monospace;
+    font-size: 0.63rem;
+    letter-spacing: 3px;
+    color: var(--accent);
+    margin: 6px 0 14px;
+    text-transform: uppercase;
+  }
+
+  .page-frame {
+    background: var(--paper);
+    background-image: repeating-linear-gradient(rgba(180,74,31,0.03) 0 1px, transparent 1px 34px);
+    border-radius: 3px;
+    box-shadow: inset 0 0 0 1px var(--paper-shadow), 0 6px 14px rgba(0,0,0,0.25);
+    padding: 0;
+    display: flex;
+    min-height: 480px;
+    overflow: hidden;
+  }
+
+  /* Side rail: alphabet or organisation index */
+  .tab-rail {
+    display: flex;
+    flex-direction: column;
+    background: var(--paper-shadow);
+    border-right: 2px dashed var(--paper-line);
+    padding: 6px 0;
+    flex-shrink: 0;
+    max-width: 150px;
+    overflow-y: auto;
+  }
+
+  .tab-btn {
+    font-family: 'Special Elite', monospace;
+    font-size: 0.68rem;
+    color: var(--ink-light);
+    background: transparent;
+    border: none;
+    padding: 4px 10px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s;
+    border-radius: 0 3px 3px 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  .tab-btn .count {
+    color: var(--ink-light);
+    font-size: 0.6rem;
+    opacity: 0.8;
+  }
+
+  .tab-btn.has-contacts {
+    color: var(--ink);
+    font-weight: bold;
+  }
+
+  .tab-btn.has-contacts:hover {
+    background: var(--accent);
+    color: var(--paper);
+  }
+  .tab-btn.has-contacts:hover .count { color: var(--paper); }
+
+  .tab-btn.active-filter {
+    background: var(--accent-dark);
+    color: var(--paper);
+  }
+  .tab-btn.active-filter .count { color: var(--paper); }
+
+  .tab-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
+  .content {
+    flex: 1;
+    padding: 18px 20px 24px;
+    min-width: 0;
+  }
+
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .search-input {
+    flex: 1;
+    min-width: 140px;
+    font-family: 'Courier Prime', monospace;
+    font-size: 0.9rem;
+    padding: 9px 12px;
+    border: 1px solid var(--paper-line);
+    border-radius: 3px;
+    background: #fbf7ec;
+    color: var(--ink);
+    outline: none;
+  }
+  .search-input:focus { border-color: var(--accent); }
+
+  .btn {
+    font-family: 'Courier Prime', monospace;
+    font-weight: 700;
+    font-size: 0.85rem;
+    padding: 9px 16px;
+    border-radius: 3px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: transform 0.1s, background 0.15s;
+    white-space: nowrap;
+  }
+  .btn:active { transform: scale(0.97); }
+
+  .btn-primary { background: var(--accent); color: var(--paper); }
+  .btn-primary:hover { background: var(--accent-dark); }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--paper-line);
+  }
+  .btn-ghost:hover { background: var(--paper-shadow); }
+
+  /* View-mode segmented control */
+  .segmented {
+    display: flex;
+    border: 1px solid var(--paper-line);
+    border-radius: 3px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .segmented button {
+    font-family: 'Courier Prime', monospace;
+    font-weight: 700;
+    font-size: 0.75rem;
+    letter-spacing: 0.5px;
+    padding: 8px 12px;
+    border: none;
+    background: #fbf7ec;
+    color: var(--ink-light);
+    cursor: pointer;
+  }
+  .segmented button.active { background: var(--accent); color: var(--paper); }
+  .segmented button:not(:last-child) { border-right: 1px solid var(--paper-line); }
+
+  .active-filter-banner {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.78rem;
+    color: var(--ink);
+    background: #f3ddb9;
+    border: 1px solid var(--amber);
+    border-radius: 3px;
+    padding: 6px 10px;
+    margin-bottom: 12px;
+  }
+  .active-filter-banner.show { display: flex; }
+  .active-filter-banner button {
+    margin-left: auto;
+    background: transparent;
+    border: none;
+    color: var(--accent-dark);
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'Courier Prime', monospace;
+    font-size: 0.75rem;
+  }
+
+  .group-header {
+    font-family: 'Special Elite', monospace;
+    font-size: 1rem;
+    color: var(--accent-dark);
+    border-bottom: 1px solid var(--paper-line);
+    padding-bottom: 4px;
+    margin: 18px 0 10px;
+    letter-spacing: 1.5px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .group-header:first-of-type { margin-top: 0; }
+  .group-header .group-count { font-family: 'Courier Prime', monospace; font-size: 0.7rem; color: var(--ink-light); }
+
+  .card {
+    background: #fbf7ec;
+    border: 1px solid var(--paper-line);
+    border-left: 4px solid var(--amber);
+    border-radius: 3px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    position: relative;
+  }
+
+  .card-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 6px;
+    padding-right: 46px;
+  }
+
+  .seal {
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, var(--accent), var(--seal));
+    color: var(--paper);
+    font-family: 'Libre Baskerville', serif;
+    font-weight: 700;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.15);
+  }
+
+  .card-name-block { min-width: 0; }
+
+  .card-name {
+    font-family: 'Libre Baskerville', serif;
+    font-weight: 700;
+    font-size: 1.05rem;
+    margin: 0;
+    color: var(--ink);
+  }
+
+  .card-org-line {
+    font-size: 0.76rem;
+    color: var(--accent-dark);
+    margin-top: 2px;
+    font-weight: 700;
+  }
+  .card-role {
+    font-weight: 400;
+    color: var(--ink-light);
+  }
+
+  .card-field {
+    font-size: 0.85rem;
+    color: var(--ink-light);
+    margin: 2px 0 2px 40px;
+    word-break: break-word;
+  }
+  .card-field b { color: var(--ink); font-weight: 700; }
+
+  .card-actions {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    gap: 6px;
+  }
+
+  .icon-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 0.95rem;
+    padding: 2px 5px;
+    border-radius: 3px;
+    color: var(--ink-light);
+    line-height: 1;
+  }
+  .icon-btn:hover { background: var(--paper-shadow); color: var(--ink); }
+  .icon-btn.delete:hover { color: var(--accent-dark); }
+
+  .empty-state {
+    text-align: center;
+    padding: 40px 12px;
+    color: var(--ink-light);
+  }
+  .empty-state .big {
+    font-family: 'Special Elite', monospace;
+    font-size: 1.1rem;
+    color: var(--ink);
+    margin-bottom: 6px;
+  }
+
+  /* Form overlay */
+  .form-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(20,12,6,0.6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 16px;
+  }
+  .form-backdrop.open { display: flex; }
+
+  .form-card {
+    background: var(--paper);
+    border-radius: 5px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.45);
+    padding: 20px;
+    width: 100%;
+    max-width: 400px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .form-title {
+    font-family: 'Special Elite', monospace;
+    font-size: 1.05rem;
+    color: var(--accent-dark);
+    margin: 0 0 14px;
+  }
+
+  .field-row { display: flex; gap: 10px; }
+  .field-row .field-group { flex: 1; min-width: 0; }
+
+  .field-group { margin-bottom: 12px; }
+  .field-group label {
+    display: block;
+    font-size: 0.7rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--ink-light);
+    margin-bottom: 4px;
+  }
+  .field-group input, .field-group textarea {
+    width: 100%;
+    font-family: 'Courier Prime', monospace;
+    font-size: 0.9rem;
+    padding: 8px 10px;
+    border: 1px solid var(--paper-line);
+    border-radius: 3px;
+    background: #fbf7ec;
+    color: var(--ink);
+    outline: none;
+  }
+  .field-group input:focus, .field-group textarea:focus { border-color: var(--accent); }
+  .field-group textarea { resize: vertical; min-height: 50px; }
+  .field-hint { font-size: 0.68rem; color: var(--ink-light); margin-top: 3px; }
+
+  .form-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 16px;
+  }
+
+  .status-line {
+    font-size: 0.72rem;
+    color: var(--ink-light);
+    text-align: center;
+    margin-top: 12px;
+  }
+
+  @media (max-width: 620px) {
+    .page-frame { flex-direction: column; min-height: unset; }
+    .tab-rail {
+      flex-direction: row;
+      overflow-x: auto;
+      max-width: none;
+      border-right: none;
+      border-bottom: 2px dashed var(--paper-line);
+      padding: 6px 4px;
+    }
+    .tab-btn { padding: 4px 8px; flex-shrink: 0; }
+    .content { padding: 14px 14px 20px; }
+    .field-row { flex-direction: column; gap: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="book" id="loginScreen" style="display:none;">
+  <div class="cover-title">Kontaktbuch<span class="subtitle">persönlicher Netzwerk-Hub</span></div>
+  <div class="page-frame" style="justify-content:center;align-items:center;padding:40px 20px;">
+    <div style="max-width:320px;width:100%;text-align:center;">
+      <div style="font-family:'Special Elite',monospace;color:var(--accent-dark);font-size:1.05rem;margin-bottom:14px;">Anmelden</div>
+      <p style="font-size:0.85rem;color:var(--ink-light);margin-bottom:16px;">Gib deine E-Mail-Adresse ein. Du bekommst einen Anmelde-Link zugeschickt — kein Passwort nötig.</p>
+      <input type="email" id="loginEmail" class="search-input" placeholder="deine@email.de" style="margin-bottom:10px;width:100%;">
+      <button class="btn btn-primary" id="loginBtn" style="width:100%;">Link senden</button>
+      <div id="loginStatus" class="status-line"></div>
+    </div>
+  </div>
+</div>
+
+<div class="book" id="appScreen" style="display:none;">
+  <div class="cover-title">Kontaktbuch<span class="subtitle">persönlicher Netzwerk-Hub</span></div>
+  <div style="text-align:right;margin:-8px 4px 8px;">
+    <button class="icon-btn" id="logoutBtn" style="font-size:0.7rem;color:var(--amber);">abmelden</button>
+  </div>
+
+  <div class="page-frame">
+    <div class="tab-rail" id="tabRail"></div>
+    <div class="content">
+      <div class="toolbar">
+        <input type="text" class="search-input" id="searchInput" placeholder="Suchen — Name, Organisation, Rolle …">
+        <div class="segmented" id="viewToggle">
+          <button data-mode="letter" class="active">A–Z</button>
+          <button data-mode="org">Organisation</button>
+        </div>
+        <button class="btn btn-ghost" id="exportBtn" title="Backup als Datei herunterladen">⬇ Backup</button>
+        <button class="btn btn-ghost" id="importBtn" title="Aus Backup-Datei wiederherstellen">⬆ Wiederherstellen</button>
+        <input type="file" id="importFile" accept="application/json" style="display:none;">
+        <button class="btn btn-primary" id="addBtn">+ Neuer Kontakt</button>
+      </div>
+      <div class="active-filter-banner" id="backupBanner">
+        <span id="backupBannerText"></span>
+        <button id="backupNowBtn" style="margin-left:auto;">jetzt sichern</button>
+        <button id="backupLaterBtn">später erinnern</button>
+      </div>
+      <div class="active-filter-banner" id="filterBanner">
+        Gefiltert nach: <strong id="filterBannerText"></strong>
+        <button id="clearFilterBtn">zurücksetzen ✕</button>
+      </div>
+      <div id="listArea"><div class="empty-state">Lade Kontakte …</div></div>
+      <div class="status-line" id="statusLine"></div>
+    </div>
+  </div>
+</div>
+
+<div class="form-backdrop" id="formBackdrop">
+  <div class="form-card">
+    <div class="form-title" id="formTitle">Neuer Kontakt</div>
+    <div class="field-group">
+      <label for="fName">Name *</label>
+      <input type="text" id="fName" placeholder="Vor- und Nachname">
+    </div>
+    <div class="field-row">
+      <div class="field-group">
+        <label for="fOrg">Organisation</label>
+        <input type="text" id="fOrg" placeholder="z. B. TU München, Siemens AG">
+      </div>
+      <div class="field-group">
+        <label for="fRole">Rolle / Position</label>
+        <input type="text" id="fRole" placeholder="z. B. Professor, CFO">
+      </div>
+    </div>
+    <div class="field-group">
+      <label for="fPhone">Telefon</label>
+      <input type="text" id="fPhone" placeholder="+49 …">
+    </div>
+    <div class="field-group">
+      <label for="fEmail">E-Mail</label>
+      <input type="text" id="fEmail" placeholder="name@beispiel.de">
+    </div>
+    <div class="field-group">
+      <label for="fAddress">Adresse</label>
+      <input type="text" id="fAddress" placeholder="Straße, PLZ Ort">
+    </div>
+    <div class="field-group">
+      <label for="fNotes">Notizen</label>
+      <textarea id="fNotes" placeholder="Wie ihr euch kennt, wofür er/sie gut als Ansprechpartner ist, Gesprächsthemen …"></textarea>
+      <div class="field-hint">Tipp: Notiere hier, wofür diese Person eine gute Anlaufstelle ist — das macht dich schneller zum Vermittler.</div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" id="cancelBtn">Abbrechen</button>
+      <button class="btn btn-primary" id="saveBtn">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ====== HIER DEINE SUPABASE-DATEN EINTRAGEN (Schritt 4 der Anleitung) ======
+const SUPABASE_URL = https://mpnabiwegotnorzflmxi.supabase.co/rest/v1/;
+const SUPABASE_ANON_KEY = sb_publishable_xpE-0f9UkTVWr62MLoKNZA_Lc8lL0ac;
+// ============================================================================
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const loginScreen = document.getElementById('loginScreen');
+const appScreen = document.getElementById('appScreen');
+const loginEmail = document.getElementById('loginEmail');
+const loginBtn = document.getElementById('loginBtn');
+const loginStatus = document.getElementById('loginStatus');
+const logoutBtn = document.getElementById('logoutBtn');
+
+async function initAuth() {
+  const { data: { session } } = await sb.auth.getSession();
+  showScreen(session);
+  sb.auth.onAuthStateChange((_event, session) => showScreen(session));
+}
+
+function showScreen(session) {
+  if (session) {
+    loginScreen.style.display = 'none';
+    appScreen.style.display = 'block';
+    loadContacts();
+    checkBackupReminder();
+  } else {
+    appScreen.style.display = 'none';
+    loginScreen.style.display = 'block';
+  }
+}
+
+loginBtn.addEventListener('click', async () => {
+  const email = loginEmail.value.trim();
+  if (!email) { loginEmail.focus(); return; }
+  loginBtn.disabled = true;
+  loginStatus.textContent = 'Sende Link …';
+  const { error } = await sb.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: window.location.href }
+  });
+  loginBtn.disabled = false;
+  loginStatus.textContent = error
+    ? 'Fehler: ' + error.message
+    : 'Link gesendet — prüfe dein E-Mail-Postfach und öffne den Link auf diesem Gerät.';
+});
+
+logoutBtn.addEventListener('click', async () => {
+  await sb.auth.signOut();
+});
+
+const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('');
+let contacts = [];
+let editingId = null;
+let viewMode = 'letter'; // 'letter' | 'org'
+let activeOrgFilter = null;
+
+const listArea = document.getElementById('listArea');
+const tabRail = document.getElementById('tabRail');
+const statusLine = document.getElementById('statusLine');
+const searchInput = document.getElementById('searchInput');
+const formBackdrop = document.getElementById('formBackdrop');
+const formTitle = document.getElementById('formTitle');
+const filterBanner = document.getElementById('filterBanner');
+const filterBannerText = document.getElementById('filterBannerText');
+const backupBanner = document.getElementById('backupBanner');
+const backupBannerText = document.getElementById('backupBannerText');
+
+function setStatus(msg, isError) {
+  statusLine.textContent = msg || '';
+  statusLine.style.color = isError ? '#93481e' : '';
+}
+
+function letterFor(name) {
+  const c = (name || '').trim().charAt(0).toUpperCase();
+  return /[A-ZÄÖÜ]/.test(c) ? (c === 'Ä' ? 'A' : c === 'Ö' ? 'O' : c === 'Ü' ? 'U' : c) : '#';
+}
+
+function orgLabel(c) {
+  return (c.org || '').trim() || 'Ohne Organisation';
+}
+
+function initials(name) {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+}
+
+const CACHE_KEY = 'kontaktbuch_cache_v1';
+
+function saveCache(list) {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ savedAt: Date.now(), contacts: list })); }
+  catch (e) { /* Speicher evtl. voll oder deaktiviert — kein Blocker */ }
+}
+
+function readCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+
+async function loadContacts() {
+  try {
+    const { data, error } = await sb.from('contacts').select('*');
+    if (error) throw error;
+    contacts = (data || []).map(row => ({
+      id: row.id, name: row.name, org: row.org || '', role: row.role || '',
+      phone: row.phone || '', email: row.email || '', address: row.address || '', notes: row.notes || ''
+    }));
+    saveCache(contacts);
+    render();
+  } catch (e) {
+    const cached = readCache();
+    if (cached) {
+      contacts = cached.contacts;
+      render();
+      const when = new Date(cached.savedAt).toLocaleString('de-DE');
+      setStatus('Offline-Ansicht — letzter Sync: ' + when + '. Änderungen sind erst nach Wiederverbindung möglich.', true);
+    } else {
+      listArea.innerHTML = '<div class="empty-state"><div class="big">Konnte Kontakte nicht laden.</div>' + escapeHtml(e.message || String(e)) + '</div>';
+    }
+  }
+}
+
+async function saveContact(contact) {
+  const row = {
+    name: contact.name, org: contact.org, role: contact.role,
+    phone: contact.phone, email: contact.email, address: contact.address, notes: contact.notes
+  };
+  if (contact.id) row.id = contact.id;
+  const { data, error } = await sb.from('contacts').upsert(row).select().single();
+  if (error) throw error;
+  return data.id;
+}
+
+async function deleteContact(id) {
+  const { error } = await sb.from('contacts').delete().eq('id', id);
+  if (error) throw error;
+}
+
+function getFiltered() {
+  const query = searchInput.value.trim().toLowerCase();
+  return contacts.filter(c => {
+    if (activeOrgFilter !== null && orgLabel(c) !== activeOrgFilter) return false;
+    if (!query) return true;
+    return [c.name, c.org, c.role, c.phone, c.email, c.address, c.notes]
+      .filter(Boolean).join(' ').toLowerCase().includes(query);
+  });
+}
+
+function render() {
+  const filtered = getFiltered();
+  filtered.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+
+  // Filter banner
+  if (activeOrgFilter !== null) {
+    filterBanner.classList.add('show');
+    filterBannerText.textContent = activeOrgFilter;
+  } else {
+    filterBanner.classList.remove('show');
+  }
+
+  renderRail();
+
+  if (filtered.length === 0) {
+    listArea.innerHTML = contacts.length === 0
+      ? '<div class="empty-state"><div class="big">Noch keine Kontakte</div>Leg deinen ersten Kontakt mit „+ Neuer Kontakt" an.</div>'
+      : '<div class="empty-state"><div class="big">Keine Treffer</div>Versuch einen anderen Suchbegriff oder Filter.</div>';
+    return;
+  }
+
+  let html = '';
+  if (viewMode === 'letter') {
+    let currentLetter = null;
+    for (const c of filtered) {
+      const letter = letterFor(c.name);
+      if (letter !== currentLetter) {
+        currentLetter = letter;
+        const count = filtered.filter(x => letterFor(x.name) === letter).length;
+        html += `<div class="group-header" id="group-${cssEscape(letter)}">${letter}<span class="group-count">${count}</span></div>`;
+      }
+      html += cardHtml(c);
+    }
+  } else {
+    const byOrg = {};
+    for (const c of filtered) {
+      const org = orgLabel(c);
+      (byOrg[org] = byOrg[org] || []).push(c);
+    }
+    const orgNames = Object.keys(byOrg).sort((a, b) => a.localeCompare(b, 'de'));
+    for (const org of orgNames) {
+      html += `<div class="group-header" id="group-${cssEscape(org)}">${escapeHtml(org)}<span class="group-count">${byOrg[org].length}</span></div>`;
+      for (const c of byOrg[org]) html += cardHtml(c);
+    }
+  }
+  listArea.innerHTML = html;
+
+  listArea.querySelectorAll('.icon-btn.edit').forEach(btn => {
+    btn.addEventListener('click', () => openForm(btn.closest('.card').dataset.id));
+  });
+  listArea.querySelectorAll('.icon-btn.delete').forEach(btn => {
+    btn.addEventListener('click', () => handleDelete(btn.closest('.card').dataset.id));
+  });
+  listArea.querySelectorAll('.card-org-line').forEach(el => {
+    el.addEventListener('click', () => {
+      viewMode = 'org';
+      updateSegmented();
+      activeOrgFilter = el.dataset.org;
+      render();
+    });
+  });
+}
+
+function cardHtml(c) {
+  const org = orgLabel(c);
+  return `
+      <div class="card" data-id="${c.id}">
+        <div class="card-actions">
+          <button class="icon-btn edit" title="Bearbeiten">✎</button>
+          <button class="icon-btn delete" title="Löschen">✕</button>
+        </div>
+        <div class="card-top">
+          <div class="seal">${escapeHtml(initials(c.name))}</div>
+          <div class="card-name-block">
+            <div class="card-name">${escapeHtml(c.name)}</div>
+            ${(c.org || c.role) ? `<div class="card-org-line" data-org="${escapeHtml(org)}" title="Klicken, um nach dieser Organisation zu filtern">${escapeHtml(c.org || 'Ohne Organisation')}${c.role ? ` <span class="card-role">— ${escapeHtml(c.role)}</span>` : ''}</div>` : ''}
+          </div>
+        </div>
+        ${c.phone ? `<div class="card-field"><b>Tel:</b> ${escapeHtml(c.phone)}</div>` : ''}
+        ${c.email ? `<div class="card-field"><b>Mail:</b> ${escapeHtml(c.email)}</div>` : ''}
+        ${c.address ? `<div class="card-field"><b>Adresse:</b> ${escapeHtml(c.address)}</div>` : ''}
+        ${c.notes ? `<div class="card-field"><b>Notiz:</b> ${escapeHtml(c.notes)}</div>` : ''}
+      </div>`;
+}
+
+function renderRail() {
+  const allFiltered = contacts.filter(c => {
+    const query = searchInput.value.trim().toLowerCase();
+    if (!query) return true;
+    return [c.name, c.org, c.role, c.phone, c.email, c.address, c.notes]
+      .filter(Boolean).join(' ').toLowerCase().includes(query);
+  });
+
+  if (viewMode === 'letter') {
+    const present = {};
+    allFiltered.forEach(c => {
+      const l = letterFor(c.name);
+      present[l] = (present[l] || 0) + 1;
+    });
+    tabRail.innerHTML = ALPHABET.map(l => {
+      const has = !!present[l];
+      return `<button class="tab-btn ${has ? 'has-contacts' : ''}" data-target="group-${cssEscape(l)}" ${has ? '' : 'disabled'}>${l}${has ? `<span class="count">${present[l]}</span>` : ''}</button>`;
+    }).join('');
+  } else {
+    const counts = {};
+    allFiltered.forEach(c => {
+      const org = orgLabel(c);
+      counts[org] = (counts[org] || 0) + 1;
+    });
+    const orgNames = Object.keys(counts).sort((a, b) => a.localeCompare(b, 'de'));
+    if (orgNames.length === 0) {
+      tabRail.innerHTML = '<div class="empty-state" style="padding:12px 8px;font-size:0.72rem;">Keine Organisationen</div>';
+    } else {
+      tabRail.innerHTML = orgNames.map(org => {
+        const isActive = activeOrgFilter === org;
+        return `<button class="tab-btn has-contacts ${isActive ? 'active-filter' : ''}" data-org="${escapeHtml(org)}" data-target="group-${cssEscape(org)}">${escapeHtml(org)}<span class="count">${counts[org]}</span></button>`;
+      }).join('');
+    }
+  }
+
+  tabRail.querySelectorAll('.tab-btn.has-contacts').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (viewMode === 'org' && btn.dataset.org) {
+        activeOrgFilter = (activeOrgFilter === btn.dataset.org) ? null : btn.dataset.org;
+        render();
+        return;
+      }
+      const el = document.getElementById(btn.dataset.target);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+}
+
+function cssEscape(s) {
+  return String(s).replace(/[^a-zA-Z0-9]/g, m => '_' + m.charCodeAt(0));
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function updateSegmented() {
+  document.querySelectorAll('#viewToggle button').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === viewMode);
+  });
+}
+
+document.getElementById('viewToggle').addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  viewMode = btn.dataset.mode;
+  if (viewMode === 'letter') activeOrgFilter = null;
+  updateSegmented();
+  render();
+});
+
+document.getElementById('clearFilterBtn').addEventListener('click', () => {
+  activeOrgFilter = null;
+  render();
+});
+
+function openForm(id) {
+  editingId = id || null;
+  const c = id ? contacts.find(x => x.id === id) : null;
+  formTitle.textContent = c ? 'Kontakt bearbeiten' : 'Neuer Kontakt';
+  document.getElementById('fName').value = c ? c.name : '';
+  document.getElementById('fOrg').value = c ? (c.org || '') : '';
+  document.getElementById('fRole').value = c ? (c.role || '') : '';
+  document.getElementById('fPhone').value = c ? c.phone : '';
+  document.getElementById('fEmail').value = c ? c.email : '';
+  document.getElementById('fAddress').value = c ? c.address : '';
+  document.getElementById('fNotes').value = c ? c.notes : '';
+  formBackdrop.classList.add('open');
+  setTimeout(() => document.getElementById('fName').focus(), 50);
+}
+
+function closeForm() {
+  formBackdrop.classList.remove('open');
+  editingId = null;
+}
+
+async function handleSave() {
+  const name = document.getElementById('fName').value.trim();
+  if (!name) {
+    document.getElementById('fName').focus();
+    return;
+  }
+  const contact = {
+    id: editingId || null,
+    name,
+    org: document.getElementById('fOrg').value.trim(),
+    role: document.getElementById('fRole').value.trim(),
+    phone: document.getElementById('fPhone').value.trim(),
+    email: document.getElementById('fEmail').value.trim(),
+    address: document.getElementById('fAddress').value.trim(),
+    notes: document.getElementById('fNotes').value.trim()
+  };
+
+  setStatus('Speichere …');
+  try {
+    const savedId = await saveContact(contact);
+    contact.id = savedId;
+    const idx = contacts.findIndex(x => x.id === contact.id);
+    if (idx >= 0) contacts[idx] = contact; else contacts.push(contact);
+    saveCache(contacts);
+    render();
+    closeForm();
+    setStatus(contacts.length + ' Kontakt' + (contacts.length === 1 ? '' : 'e') + ' im Netzwerk');
+  } catch (e) {
+    setStatus('Speichern fehlgeschlagen. Bitte erneut versuchen.', true);
+  }
+}
+
+async function handleDelete(id) {
+  const c = contacts.find(x => x.id === id);
+  if (!c) return;
+  if (!confirm('„' + c.name + '" wirklich löschen?')) return;
+  setStatus('Lösche …');
+  try {
+    await deleteContact(id);
+    contacts = contacts.filter(x => x.id !== id);
+    saveCache(contacts);
+    render();
+    setStatus('Kontakt gelöscht');
+  } catch (e) {
+    setStatus('Löschen fehlgeschlagen. Bitte erneut versuchen.', true);
+  }
+}
+
+const BACKUP_KEY = 'kontaktbuch_last_backup';
+const BACKUP_SNOOZE_KEY = 'kontaktbuch_backup_snooze';
+const BACKUP_REMINDER_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function doExport() {
+  const blob = new Blob([JSON.stringify(contacts, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = 'kontaktbuch-backup-' + stamp + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  localStorage.setItem(BACKUP_KEY, String(Date.now()));
+  localStorage.removeItem(BACKUP_SNOOZE_KEY);
+  backupBanner.classList.remove('show');
+}
+
+function checkBackupReminder() {
+  const snoozeUntil = Number(localStorage.getItem(BACKUP_SNOOZE_KEY) || 0);
+  if (Date.now() < snoozeUntil) { backupBanner.classList.remove('show'); return; }
+
+  const last = Number(localStorage.getItem(BACKUP_KEY) || 0);
+  if (!last) {
+    backupBannerText.textContent = 'Du hast noch kein Backup heruntergeladen. Falls Supabase mal ausfällt, sind deine Kontakte sonst nicht wiederherstellbar.';
+    backupBanner.classList.add('show');
+    return;
+  }
+  const daysSince = Math.floor((Date.now() - last) / DAY_MS);
+  if (daysSince >= BACKUP_REMINDER_DAYS) {
+    backupBannerText.textContent = 'Letztes Backup vor ' + daysSince + ' Tagen. Zeit für eine neue Sicherung.';
+    backupBanner.classList.add('show');
+  } else {
+    backupBanner.classList.remove('show');
+  }
+}
+
+document.getElementById('backupNowBtn').addEventListener('click', doExport);
+document.getElementById('backupLaterBtn').addEventListener('click', () => {
+  localStorage.setItem(BACKUP_SNOOZE_KEY, String(Date.now() + 7 * DAY_MS));
+  backupBanner.classList.remove('show');
+});
+
+document.getElementById('exportBtn').addEventListener('click', doExport);
+
+document.getElementById('importBtn').addEventListener('click', () => {
+  document.getElementById('importFile').click();
+});
+
+document.getElementById('importFile').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const items = JSON.parse(text);
+    if (!Array.isArray(items)) throw new Error('Datei enthält keine gültige Kontaktliste.');
+    const ok = confirm(items.length + ' Kontakte aus der Datei wiederherstellen? Das fügt sie neu hinzu (bereits vorhandene werden nicht automatisch erkannt oder zusammengeführt).');
+    if (!ok) { e.target.value = ''; return; }
+    setStatus('Stelle wieder her …');
+    for (const item of items) {
+      await saveContact({
+        id: null, name: item.name || 'Unbenannt', org: item.org || '', role: item.role || '',
+        phone: item.phone || '', email: item.email || '', address: item.address || '', notes: item.notes || ''
+      });
+    }
+    await loadContacts();
+    setStatus(items.length + ' Kontakte wiederhergestellt.');
+  } catch (err) {
+    setStatus('Wiederherstellung fehlgeschlagen: ' + (err.message || err), true);
+  }
+  e.target.value = '';
+});
+
+document.getElementById('addBtn').addEventListener('click', () => openForm(null));
+document.getElementById('cancelBtn').addEventListener('click', closeForm);
+document.getElementById('saveBtn').addEventListener('click', handleSave);
+formBackdrop.addEventListener('click', e => { if (e.target === formBackdrop) closeForm(); });
+searchInput.addEventListener('input', render);
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => { /* kein Blocker, App läuft auch ohne SW */ });
+}
+
+initAuth();
+</script>
+
+</body>
+</html>
