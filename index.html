@@ -534,11 +534,32 @@
 
 <script>
 // ====== HIER DEINE SUPABASE-DATEN EINTRAGEN (Schritt 4 der Anleitung) ======
-const SUPABASE_URL = https://mpnabiwegotnorzflmxi.supabase.co/rest/v1/;
-const SUPABASE_ANON_KEY = sb_publishable_xpE-0f9UkTVWr62MLoKNZA_Lc8lL0ac;
+const SUPABASE_URL = 'DEINE-PROJEKT-URL.supabase.co';
+const SUPABASE_ANON_KEY = 'DEIN-ANON-KEY';
 // ============================================================================
 
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+function showFatalError(message) {
+  document.body.innerHTML =
+    '<div style="max-width:480px;margin:60px auto;padding:24px;background:#f6f1e4;border:2px solid #c1652f;border-radius:6px;font-family:monospace;color:#3a2a1a;">' +
+    '<strong style="color:#93481e;">Kontaktbuch konnte nicht starten</strong><br><br>' + message + '</div>';
+}
+
+let sb;
+if (!window.supabase) {
+  showFatalError('Die Datei "supabase.min.js" wurde nicht gefunden oder konnte nicht geladen werden. Prüfe, ob sie im selben GitHub-Ordner liegt wie index.html.');
+} else {
+  try {
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  } catch (e) {
+    showFatalError('SUPABASE_URL oder der Key sind ungültig. Prüfe die beiden Werte ganz oben im &lt;script&gt;-Bereich der index.html.<br><br>Fehler: ' + escapeHtmlSafe(e.message));
+  }
+}
+
+function escapeHtmlSafe(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
 
 const loginScreen = document.getElementById('loginScreen');
 const appScreen = document.getElementById('appScreen');
